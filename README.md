@@ -4,7 +4,6 @@
 
 This Python script connects to one or more IMAP accounts, searches for a spam folder (e.g. "Spam", "Junk", etc.), and pipes all found messages to `sa-learn --spam`, allowing SpamAssassin to improve its filtering accuracy based on actual user-classified spam.
 
----
 
 ## Features
 
@@ -14,7 +13,6 @@ This Python script connects to one or more IMAP accounts, searches for a spam fo
 - Calls `sa-learn` for each message.
 - Logs useful output for each account (messages found, errors, etc.).
 
----
 
 ## CSV Format
 
@@ -24,3 +22,34 @@ The script expects a CSV file with the following headers:
 email,password
 user1@example.com,secret123
 user2@example.com,anotherpass
+```
+Store the CSV file somewhere safe! It contains plaintext passwords.
+
+## Automate with systemd
+
+To automatically run the script every night at 03:00, create the following two systemd files:
+
+`/etc/systemd/system/sa-learnimap.service`
+```
+[Unit]
+Description=Run SpamAssassin IMAP training script
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sa-learnimap --users /etc/sa-learnimap/users.csv
+User=someuser
+Nice=10
+```
+
+`/etc/systemd/system/sa-learnimap.timer`
+```
+[Unit]
+Description=Daily SpamAssassin IMAP training at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
