@@ -8,91 +8,99 @@ import csv
 
 IMAP_SERVER = "127.0.0.1"
 IMAP_PORT = 993
+
+## Keys for spam folder name
 SPAM_KEYWORDS = ["spam", "junk", "junkmail"]
 
-
+## Find the spam folder from IMAP folder list 
 def find_spam_folder(mail):
-    status, folders = mail.list()
-    if status != "OK":
+        status, folders = mail.list()
+        if status != "OK":
+                return None
+
+        for folder_raw in folders:
+                folder_str = folder_raw.decode()
+                parts = folder_str.split(' "/" ')
+                if len(parts) == 2:
+                        folder_name = parts[1].strip('"')
+                        lower_name = folder_name.lower()
+                        if any(keyword in lower_name for keyword in SPAM_KEYWORDS):
+                                return folder_name
         return None
 
-    for folder_raw in folders:
-        folder_str = folder_raw.decode()
-        parts = folder_str.split(' "/" ')
-        if len(parts) == 2:
-            folder_name = parts[1].strip('"')
-            lower_name = folder_name.lower()
-            if any(keyword in lower_name for keyword in SPAM_KEYWORDS):
-                return folder_name
-    return None
+## Train Spamassasin, delete mails if delete argument is enables
+def train_user_spam(email_addr, password, delete_after=False):
+        try:
+                mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+                mail.login(email_addr, password)
 
+                spam_folder = find_spam_folder(mail)
+                if not spam_folder:
+                        print(f"[{email_addr}] No spam folder found.")
+                        mail.logout()
+                        return
 
-def train_user_spam(email_addr, password):
-    try:
-        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
-        mail.login(email_addr, password)
+                status, _ = mail.select(spam_folder)
+                if status != 'OK':
+                        print(f"[{email_addr}] Could not open folder: {spam_folder}")
+                        mail.logout()
+                        return
 
-        spam_folder = find_spam_folder(mail)
-        if not spam_folder:
-            print(f"[{email_addr}] No spam folder found.")
-            mail.logout()
-            return
+                typ, data = mail.search(None, "ALL")
+                if typ != "OK":
+                        print(f"[{email_addr}] Could not search folder.")
+                        mail.logout()
+                        return
 
-        status, _ = mail.select(spam_folder)
-        if status != 'OK':
-            print(f"[{email_addr}] Could not open folder: {spam_folder}")
-            mail.logout()
-            return
+                mail_ids = data[0].split()
+                print(f"[{email_addr}] Found {len(mail_ids)} messages in '{spam_folder}'")
 
-        typ, data = mail.search(None, "ALL")
-        if typ != "OK":
-            print(f"[{email_addr}] Could not search folder.")
-            mail.logout()
-            return
+                for num in mail_ids:
+                        typ, msg_data = mail.fetch(num, '(RFC822)')
+                        raw_email = msg_data[0][1]
+                        proc = subprocess.Popen(['sa-learn', '--spam'], stdin=subprocess.PIPE)
+                        proc.communicate(input=raw_email)
 
-        mail_ids = data[0].split()
-        print(f"[{email_addr}] Found {len(mail_ids)} messages in '{spam_folder}'")
+                        if delete_after:
+                                mail.store(num, '+FLAGS', '\\Deleted')
 
-        for num in mail_ids:
-            typ, msg_data = mail.fetch(num, '(RFC822)')
-            raw_email = msg_data[0][1]
-            proc = subprocess.Popen(['sa-learn', '--spam'], stdin=subprocess.PIPE)
-            proc.communicate(input=raw_email)
+                if delete_after:
+                        mail.expunge()
 
-        mail.logout()
-        print(f"[{email_addr}] Training complete.")
+                mail.logout()
+                print(f"[{email_addr}] Training complete.")
 
-    except Exception as e:
-        print(f"[{email_addr}] Error: {e}")
-
+        except Exception as e:
+                print(f"[{email_addr}] Error: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Train SpamAssassin from IMAP accounts")
-    parser.add_argument('--users', required=True, help="CSV file with columns: email,password")
-    args = parser.parse_args()
+        parser = argparse.ArgumentParser(description="Train SpamAssassin from IMAP accounts")
+        parser.add_argument('--users', required=True, help="CSV file with columns: email,password")
+        parser.add_argument('--delete', action='store_true', help="Delete messages after training")
+        args = parser.parse_args()
 
-    try:
-        with open(args.users, newline='', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
+        try:
+                with open(args.users, newline='', encoding='utf-8') as csvfile:
+                        reader = csv.DictReader(csvfile)
 
-            if reader.fieldnames is None or "email" not in reader.fieldnames or "password" not in reader.fieldnames:
-                print(f"Invalid CSV file: missing 'email,password' headers.")
-                return
+                        if reader.fieldnames is None or "email" not in reader.fieldnames or "password" not in reader.fieldnames:
+                                print(f"Invalid CSV file: missing 'email,password' headers.")
+                                return
 
-            for row in reader:
-                if not isinstance(row, dict):
-                    print("Skipping invalid row:", row)
-                    continue
+                        for row in reader:
+                                if not isinstance(row, dict):
+                                        print("Skipping invalid row:", row)
+                                        continue
 
-                email_addr = (row.get("email") or "").strip()
-                password = (row.get("password") or "").strip()
+                                email_addr = (row.get("email") or "").strip()
+                                password = (row.get("password") or "").strip()
 
-                if email_addr and password:
-                    train_user_spam(email_addr, password)
-                else:
-                    print("Incomplete credentials in row:", row)
-    except FileNotFoundError:
-        print(f"Could not find the file {args.users}")
+                                if email_addr and password:
+                                        train_user_spam(email_addr, password, delete_after=args.delete)
+                                else:
+                                        print("Incomplete credentials in row:", row)
+        except FileNotFoundError:
+                print(f"Could not find the file {args.users}")
 
 if __name__ == "__main__":
-    main()
+        main()
