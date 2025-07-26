@@ -14,6 +14,12 @@ This is especially useful for mail servers like **Axigen Mail**, where messages 
 - Calls `sa-learn` for each message.
 - Optionally deletes messages after training (`--delete`).
 
+## Usage
+
+```bash
+sa-learnimap --users path/to/users.csv [--delete]
+```
+
 ## CSV Format
 
 The script expects a CSV file with the following headers:
