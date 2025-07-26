@@ -11,8 +11,7 @@ This Python script connects to one or more IMAP accounts, searches for a spam fo
 - Reads user credentials from a CSV file.
 - Works over IMAP (with SSL).
 - Calls `sa-learn` for each message.
-- Logs useful output for each account (messages found, errors, etc.).
-
+- Optionally deletes messages after training (`--delete`).
 
 ## CSV Format
 
