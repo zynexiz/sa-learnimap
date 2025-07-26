@@ -2,8 +2,9 @@
 
 **Train SpamAssassin using messages stored in IMAP "spam" folders across multiple mail accounts.**
 
-This Python script connects to one or more IMAP accounts, searches for a spam folder (e.g. "Spam", "Junk", etc.), and pipes all found messages to `sa-learn --spam`, allowing SpamAssassin to improve its filtering accuracy based on actual user-classified spam.
+This Python script connects to one or more IMAP accounts, searches for a spam folder (e.g. "Spam", "Junk", etc.), and pipes all found messages to `sa-learn --spam`, allowing SpamAssassin to improve its filtering accuracy based on actual user-classified spam.  
 
+This is especially useful for mail servers like **Axigen Mail**, where messages are stored in internal databases rather than as individual files, making direct file-based training infeasible.
 
 ## Features
 
